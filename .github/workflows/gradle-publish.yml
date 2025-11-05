@@ -1,44 +1,60 @@
-# This workflow uses actions that are not certified by GitHub.
-# They are provided by a third-party and are governed by
-# separate terms of service, privacy policy, and support
-# documentation.
-# This workflow will build a package using Gradle and then publish it to GitHub packages when a release is created
-# For more information see: https://github.com/actions/setup-java/blob/main/docs/advanced-usage.md#Publishing-using-gradle
-
-name: Gradle Package
+name: Release on tag
 
 on:
-  release:
-    types: [created]
+  commit:
+
+permissions:
+  contents: write
 
 jobs:
-  build:
-
+  build-and-release:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
 
     steps:
-    - uses: actions/checkout@v4
-    - name: Set up JDK 17
-      uses: actions/setup-java@v4
-      with:
-        java-version: '17'
-        distribution: 'temurin'
-        server-id: github # Value of the distributionManagement/repository/id field of the pom.xml
-        settings-path: ${{ github.workspace }} # location for the settings.xml file
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    - name: Setup Gradle
-      uses: gradle/actions/setup-gradle@af1da67850ed9a4cedd57bfd976089dd991e2582 # v4.0.0
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
 
-    - name: Build with Gradle
-      run: ./gradlew build
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/wrapper-validation@v3
 
-    # The USERNAME and TOKEN need to correspond to the credentials environment variables used in
-    # the publishing section of your build.gradle
-    - name: Publish to GitHub Packages
-      run: ./gradlew publish
-      env:
-        USERNAME: ${{ github.actor }}
-        TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build (assemble + shadow if present)
+        run: |
+          chmod +x ./gradlew
+          ./gradlew --no-daemon clean build shadowJar || ./gradlew --no-daemon clean build
+
+      - name: Collect artifacts
+        id: collect
+        run: |
+          mkdir -p artifacts
+          # Adjust the patterns below to your project output
+          shopt -s nullglob
+          for f in build/libs/*-all.jar build/libs/*-shadow.jar build/libs/*.jar ; do
+            cp "$f" artifacts/
+          done
+          echo "count=$(ls -1 artifacts | wc -l)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload build artifacts (workflow run)
+        if: steps.collect.outputs.count != '0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: jars-${{ github.ref_name }}
+          path: artifacts/*
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: artifacts/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
