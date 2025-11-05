@@ -3,12 +3,12 @@ plugins {
     id 'application'
 }
 
-group 'com.example'
+group 'dev.blackdev'
 version '1.0-SNAPSHOT'
 
 sourceCompatibility = '1.8'
 
-mainClassName = 'src.ActivityExample'
+mainClassName = 'dev.blackdev.Main'
 
 repositories {
     mavenCentral()
@@ -16,7 +16,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.github.JnCrMx:discord-game-sdk4j:master-SNAPSHOT'
+ implementation 'com.github.JnCrMx:discord-game-sdk4j:v1.0.0'
 }
 
 tasks.withType(JavaCompile) {
